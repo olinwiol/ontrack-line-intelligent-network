@@ -230,6 +230,7 @@ class TrackViewer(tk.Tk):
         # Create matplotlib figure and canvas
         self.fig = Figure(figsize=(12, 8), dpi=100, facecolor='#222222')
         self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor('#000000')
 
         # Configure the plot
         self.ax.set_aspect('equal')
@@ -277,6 +278,8 @@ class TrackViewer(tk.Tk):
     def update_display(self):
         """Update the display with all track segments."""
         self.ax.clear()
+        self.ax.set_facecolor('#000000')
+
         self.ax.set_xlim(300, 900)
         self.ax.set_ylim(300, 700)
         self.ax.axis('off')
