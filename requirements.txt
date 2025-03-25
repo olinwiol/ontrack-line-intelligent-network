@@ -1,3 +1,4 @@
 pip~=25.0
-numpy
-pyglet
+numpy~=2.2.4
+pillow~=11.1.0
+matplotlib~=3.10.1

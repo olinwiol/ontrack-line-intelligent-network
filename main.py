@@ -1,22 +1,26 @@
-import pyglet  # Animation library for visualization
-from pyglet import *
+import matplotlib.pyplot as plt
 import numpy as np
-import uuid  # Identification library
+import uuid
 from typing import Dict
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import tkinter as tk
+from tkinter import ttk
+import time
 
-# Create window with visible=True to ensure it's displayed
-window = pyglet.window.Window(width=1200, height=800, caption="OnTrack Line Intelligent Network", visible=True)
-batch = pyglet.graphics.Batch()
+# Track appearance constants
+TRACK_COLOR = (243 / 255, 167 / 255, 18 / 255)
+TRACK_HIGHLIGHT_COLOR = (219 / 255, 43 / 255, 57 / 255)
+TRAIN_COLOR = (220 / 255, 50 / 255, 50 / 255)
+SWITCH_COLOR = (50 / 255, 200 / 255, 50 / 255)
+SWITCH_ACTIVE_COLOR = (200 / 255, 200 / 255, 50 / 255)
+STATION_COLOR = (50 / 255, 50 / 255, 200 / 255)
+
+# Line thickness
+LINE_THICKNESS = 4
 
 # Global list to keep references to track segments
 track_segments = []
-
-TRACK_COLOR = (243, 167, 18)
-TRACK_HIGHLIGHT_COLOR = (219, 43, 57)
-TRAIN_COLOR = (220, 50, 50)
-SWITCH_COLOR = (50, 200, 50)
-SWITCH_ACTIVE_COLOR = (200, 200, 50)
-STATION_COLOR = (50, 50, 200)
 
 class Point:
     """
@@ -41,7 +45,11 @@ class TrackSegment:
     def __init__(self, id=None):
         self.id = id or str(uuid.uuid4())[:8]
         self.connections = {}
-        self.visual_elements = []
+        self.color = TRACK_COLOR
+
+    def draw(self, ax):
+        """Draw the track segment on the Matplotlib axes."""
+        raise NotImplementedError("Subclasses must implement this method")
 
     def get_point_at_distance(self, start_point, distance) -> Point:
         """Get coordinates at a specific distance from a start point."""
@@ -57,19 +65,15 @@ class TrackSegment:
 
     def highlight(self):
         """Highlight the track segment."""
-        for element in self.visual_elements:
-            if hasattr(element, "color"):
-                element.color = TRACK_HIGHLIGHT_COLOR
+        self.color = TRACK_HIGHLIGHT_COLOR
 
     def remove_highlight(self):
         """Remove highlight on the track segment."""
-        for element in self.visual_elements:
-            if hasattr(element, "color"):
-                element.color = TRACK_COLOR
+        self.color = TRACK_COLOR
 
 class StraightTrackSegment(TrackSegment):
     """
-    Straight track segment.
+    Straight track segment with rounded caps.
     """
 
     def __init__(self, start: Point, end: Point, id=None):
@@ -78,11 +82,13 @@ class StraightTrackSegment(TrackSegment):
         self.end = end
         self.length = start.distance_to(end)
 
-        self.line = shapes.Line(
-            start.x, start.y, end.x, end.y,
-            thickness=4, color=TRACK_COLOR, batch=batch
-        )
-        self.visual_elements.append(self.line)
+    def draw(self, ax):
+        """Draw the track segment on the Matplotlib axes."""
+        ax.plot([self.start.x, self.end.x],
+                [self.start.y, self.end.y],
+                color=self.color,
+                linewidth=LINE_THICKNESS,
+                solid_capstyle='round')
 
     def get_point_at_distance(self, start_point, distance) -> Point:
         """Determines which point end is the start point."""
@@ -101,19 +107,88 @@ class StraightTrackSegment(TrackSegment):
     def get_connection_points(self) -> Dict[str, Point]:
         return {"start": self.start, "end": self.end}
 
-@window.event
-def on_draw():
-    window.clear()
-    batch.draw()
 
-def update(dt):
-    pass
+class TrackViewer(tk.Tk):
+    """
+    Tkinter window to display the track network using Matplotlib.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.title("OnTrack Line Intelligent Network")
+        self.geometry("1200x800")
+
+        # Create a frame for the visualization
+        self.frame = ttk.Frame(self)
+        self.frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create matplotlib figure and canvas
+        self.fig = Figure(figsize=(12, 8), dpi=100, facecolor='#222222')
+        self.ax = self.fig.add_subplot(111)
+        self.ax.set_facecolor('#000000')
+
+        # Configure the plot
+        self.ax.set_aspect('equal')
+        self.ax.set_xlim(300, 900)
+        self.ax.set_ylim(300, 700)
+        self.ax.axis('off')  # Hide the axes
+
+        # Create the canvas
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        # Draw the track segments
+        self.update_display()
+
+        # Animation variables
+        self.animation_running = False
+        self.after_id = None
+
+        # Start animation
+        self.animate()
+
+    def animate(self):
+        """Basic animation loop."""
+        if self.animation_running:
+            # Add animation code here
+            pass
+
+        self.after_id = self.after(33, self.animate)  # ~30fps
+
+    def update_display(self):
+        """Update the display with all track segments."""
+        self.ax.clear()
+        self.ax.set_facecolor('#000000')
+        self.ax.set_xlim(300, 900)
+        self.ax.set_ylim(300, 700)
+        self.ax.axis('off')
+
+        # Draw all track segments
+        for segment in track_segments:
+            segment.draw(self.ax)
+
+        self.canvas.draw()
+
+    def toggle_animation(self):
+        """Toggle animation on/off."""
+        self.animation_running = not self.animation_running
+
+    def __del__(self):
+        if self.after_id:
+            self.after_cancel(self.after_id)
+
 
 def main():
-    straight = StraightTrackSegment(Point(400, 400), Point(700, 400))
-    track_segments.append(straight)
-    pyglet.clock.schedule_interval(update, 1 / 60.0)
+    main_line = StraightTrackSegment(Point(450, 500), Point(600, 500))
+    connected_line = StraightTrackSegment(Point(600, 500), Point(710, 620))
+
+    track_segments.append(main_line)
+    track_segments.append(connected_line)
+
+    window = TrackViewer()
+    window.mainloop()
+
 
 if __name__ == "__main__":
     main()
-    pyglet.app.run()
